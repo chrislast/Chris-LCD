@@ -27,6 +27,23 @@
 *.i*86
 *.x86_64
 *.hex
+*.axf
 
 # Debug files
 *.dSYM/
+
+# Project files
+*.uvproj
+*.uvgui*
+*.uvopt
+*.crf
+*.bak
+*.htm
+*.lnp
+*.map
+*.lst
+
+# Dependency files
+*.dep
+*.d
+

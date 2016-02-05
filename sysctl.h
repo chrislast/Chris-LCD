@@ -18,6 +18,14 @@
 #define SYSCTL_RCGCADC  (*((volatile unsigned long *)(SYSCTL_BASE+0x638))) // ADC Run Mode Clock Gating Control p351
 #define SYSCTL_RCGCPWM  (*((volatile unsigned long *)(SYSCTL_BASE+0x640))) // PWM Run Mode Clock Gating Control p353
 
-void sysctl_init(void);
+#define PERIPH_BASE (0xE000E000)
 
+// SYSTICK timer
+#define SYSTICK_RELOAD_VALUE 0x1fe
+#define PERIPH_STCTRL    (*((volatile unsigned long *)(PERIPH_BASE+0x0010))) // SysTick Control and Status Register p136
+#define PERIPH_STRELOAD  (*((volatile unsigned long *)(PERIPH_BASE+0x0014))) // SysTick Reload Value Register p138
+#define PERIPH_STCURRENT (*((volatile unsigned long *)(PERIPH_BASE+0x0018))) // SysTick Current Value Register p139
+
+void sysctl_init(void);
+void Delay1ms(unsigned long msec);
 #endif

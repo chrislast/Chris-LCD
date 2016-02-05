@@ -15,7 +15,7 @@
 #define GPIO_PORTE_AHB (0x4005C000) // High speed GPIO Port E base address
 #define GPIO_PORTF_AHB (0x4005D000) // High speed GPIO Port F base address
 
-#define GPIO_PORTA_BASE (GPIO_PORTA_AHB) // use high-speed
+#define GPIO_PORTA_BASE (GPIO_PORTA_APB) // use high-speed
 #define GPIO_PORTB_BASE (GPIO_PORTB_AHB) // use high-speed
 #define GPIO_PORTC_BASE (GPIO_PORTC_AHB) // use high-speed
 #define GPIO_PORTD_BASE (GPIO_PORTD_AHB) // use high-speed

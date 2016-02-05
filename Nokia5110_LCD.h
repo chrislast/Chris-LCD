@@ -4,38 +4,46 @@
 #include "GPIO.h"
 #include "SSI.h"
 
-/*
-  Hardware:
-    Graphic LCD Pin ---------- TM4C123GHXL
-       1-VCC       ----------------  3.3V
-       2-GND       ----------------  GND
-       3-SCE       ----------------  GPIO PORT D PIN 0
-       4-RST       ----------------  GPIO PORT D PIN 1
-       5-D/C       ----------------  GPIO PORT D PIN 2
-       6-DN(MOSI)  ----------------  SSI/SPI DATA
-       7-SCLK      ----------------  SSI/SPI CLK
-       8-LED       - 330 Ohm res --  GPIO PORT D PIN 3
-*/
+// Red SparkFun Nokia 5110 (LCD-10168)
+// -----------------------------------
+// Signal        (Nokia 5110) LaunchPad pin
+// 3.3V          (VCC, pin 1) power
+// Ground        (GND, pin 2) ground
+// SSI0Fss       (SCE, pin 3) connected to PA3
+// Reset         (RST, pin 4) connected to PA7
+// Data/Command  (D/C, pin 5) connected to PA6
+// SSI0Tx        (DN,  pin 6) connected to PA5
+// SSI0Clk       (SCLK, pin 7) connected to PA2
+// back light    (LED, pin 8) not connected, consists of 4 white LEDs which draw ~80mA total
 
 // Map LCD GPIO outputs to Port D
-#define LCD_GPIO_DATA_R  (GPIO_PORTD_DATA_R)
-#define LCD_GPIO_AMSEL_R (GPIO_PORTD_AMSEL_R)
-#define LCD_GPIO_PCTL_R  (GPIO_PORTD_PCTL_R)
-#define LCD_GPIO_DIR_R   (GPIO_PORTD_DIR_R)
-#define LCD_GPIO_AFSEL_R (GPIO_PORTD_AFSEL_R)
-#define LCD_GPIO_PUR_R   (GPIO_PORTD_PUR_R)    
-#define LCD_GPIO_DEN_R   (GPIO_PORTD_DEN_R)
+#define LCD_GPIO_DATA_R  (GPIO_PORTA_DATA_R)
+#define LCD_GPIO_AMSEL_R (GPIO_PORTA_AMSEL_R)
+#define LCD_GPIO_PCTL_R  (GPIO_PORTA_PCTL_R)
+#define LCD_GPIO_DIR_R   (GPIO_PORTA_DIR_R)
+#define LCD_GPIO_AFSEL_R (GPIO_PORTA_AFSEL_R)
+#define LCD_GPIO_PUR_R   (GPIO_PORTA_PUR_R)    
+#define LCD_GPIO_DEN_R   (GPIO_PORTA_DEN_R)
 
-#define LCD_SCE  (1L<<0) // PIN0
-#define LCD_RST  (1L<<1) // PIN1
-#define LCD_DC   (1L<<2) // PIN2
-#define LCD_LED  (1L<<3) // PIN3
+#define LCD_SCLK (1L<<2) // PA2 - SSI0Clk
+#define LCD_SCE  (1L<<3) // PA3 - SSI0Fss
+#define LCD_DN   (1L<<5) // PA5 - SSI0Tx
+#define LCD_DC   (1L<<6) // PA6 - D/C
+#define LCD_RST  (1L<<7) // PA7 - RST
+#define LCD_LED  (0) // NOT CONNECTED
 
-// Use default SSI PORT A [5:2]
-#define LCD_SSI_DATA_R (SSI0_DATA_R)
+// Use default SSI0 on PORT A [5:2]
+#define LCD_SSI_DATA_R (SSI0_DATA_R) // SSIDR p968
+#define LCD_SSI_STAT_R (SSI0_STAT_R) // SSISR p969
+#define LCD_SSI_CTL0_R (SSI0_CTL0_R) // SSICR0 p964
+#define LCD_SSI_CTL1_R (SSI0_CTL1_R) // SSICR1 p966
 
-#define SYSCTL_RCGCGPIO_CLKD (0x00000008)
-#define LCD_GPIO_CLOCK_ENABLE (SYSCTL_RCGCGPIO_CLKD)
+#define LCD_SSI_FRAME_FORMAT (SSI_FRAME_FORMAT_FREESCALE_SPI)
+
+
+#define SYSCTL_RCGCGPIO_CLKD (1L<<3)
+#define SYSCTL_RCGCGPIO_CLKA (1L<<0)
+#define LCD_GPIO_CLOCK_ENABLE (SYSCTL_RCGCGPIO_CLKA)
 
 enum LCD_DISPLAY_CONTROL
 {
@@ -46,15 +54,17 @@ enum LCD_DISPLAY_CONTROL
 };
 
 struct LCD_bitmap {
-	unsigned char pixel[48][84];
+	unsigned char pixel[6][84];
 };
 
 void LCD_display_char (char c);
 void LCD_display_string (char *c);
 void LCD_display_bitmap (struct LCD_bitmap *bitmap);
-void LCD_set_cursor (int x, int y);
+void LCD_set_cursor (unsigned int x, unsigned int y);
 void LCD_display_control (enum LCD_DISPLAY_CONTROL command);
 void LCD_init(void);
 void LCD_clear_screen(void);
 void LCD_test_pattern(int pattern);
+void LCD_power_on(void);
+void LCD_power_off (void);
 #endif

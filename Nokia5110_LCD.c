@@ -28,8 +28,6 @@ enum LCD_POWER_STATUS
 	LCD_POWER_OFF=0x04
 };
 
-static enum LCD_CD cd_state;
-static enum LCD_INSTRUCTION_SET instruction_set;
 static enum LCD_ADDRESS_MODE address_mode;
 static enum LCD_POWER_STATUS power_status;
 
@@ -40,6 +38,14 @@ static enum LCD_POWER_STATUS power_status;
 #define LCD_HEIGHT_CHARS (LCD_HEIGHT/8) // 6 chars high
 #define WHITE       0  // For drawing pixels. A 0 draws white.
 #define BLACK       1  // A 1 draws black.
+
+#define LCD_COMMAND_FUNCTION_SET    0x20
+#define LCD_COMMAND_DISPLAY_CONTROL 0x08
+#define LCD_COMMAND_SET_X_ADDRESS   0x80
+#define LCD_COMMAND_SET_Y_ADDRESS   0x40
+#define LCD_COMMAND_TEMP_CONTROL    0x04
+#define LCD_COMMAND_BIAS_SYSTEM     0x10
+#define LCD_COMMAND_SET_CONTRAST    0x80
 
 static const unsigned char ASCII[][5] = {
   // First 32 characters (0x00-0x19) are ignored. These are
@@ -104,7 +110,7 @@ static const unsigned char ASCII[][5] = {
   ,{0x07, 0x08, 0x70, 0x08, 0x07} // 0x59 Y
   ,{0x61, 0x51, 0x49, 0x45, 0x43} // 0x5a Z
   ,{0x00, 0x7f, 0x41, 0x41, 0x00} // 0x5b [
-  ,{0x02, 0x04, 0x08, 0x10, 0x20} // 0x5c \
+  ,{0x02, 0x04, 0x08, 0x10, 0x20} // 0x5c backslash
   ,{0x00, 0x41, 0x41, 0x7f, 0x00} // 0x5d ]
   ,{0x04, 0x02, 0x01, 0x02, 0x04} // 0x5e ^
   ,{0x40, 0x40, 0x40, 0x40, 0x40} // 0x5f _
@@ -142,19 +148,31 @@ static const unsigned char ASCII[][5] = {
   ,{0x78, 0x46, 0x41, 0x46, 0x78} // 0x7f DEL
 };
 
+
+// LCD_SSI_DATA_R = SSIDR  p968
+// LCD_SSI_STAT_R = SSISR  p969
+
 static void LCD_write (enum LCD_CD cd, unsigned char byte)
 {
-	if (cd != cd_state)
+	if (cd == LCD_COMMAND)
 	{
-		// set command/data bit
-		if (cd == LCD_COMMAND)
-			LCD_GPIO_DATA_R &= ~LCD_DC;  // 0=command input type
-		else
-			LCD_GPIO_DATA_R |= LCD_DC;   // 1=data input type
-		cd_state=cd;
+		// Wait until SSI is idle
+		while(LCD_SSI_STAT_R&SSI_SR_BUSY);
+	  LCD_GPIO_DATA_R &= ~LCD_DC;  // clear DC bit for command
+		
+		// write command byte to serial port
+		LCD_SSI_DATA_R = byte;
+    // Wait for command to complete
+		while(LCD_SSI_STAT_R&SSI_SR_BUSY);
+	  LCD_GPIO_DATA_R |= LCD_DC;  // Set DC bit for data
 	}
-	// write byte to serial port
-	//SSI_write(byte);
+	else
+	{
+		// Wait until Tx FIFO is not full
+		while (!(LCD_SSI_STAT_R&SSI_SR_TX_FIFO_NOT_FULL));
+		// write data byte to serial port
+		LCD_SSI_DATA_R = byte;
+	}
 }
 
 void LCD_display_char (char c)
@@ -172,11 +190,11 @@ void LCD_display_char (char c)
 
 void LCD_display_string (char *c)
 {
-  while (c)
+  while (*c)
   	LCD_display_char(*c++);
 }
 
-void LCD_display_bitmap (struct LCD_bitmap *bitmap)
+void LCD_display_bitmap2 (struct LCD_bitmap *bitmap)
 {
 	unsigned char output;
 	int i,j,k;
@@ -190,7 +208,7 @@ void LCD_display_bitmap (struct LCD_bitmap *bitmap)
 			{
 				output=output<<1;
 				output+=((bitmap->pixel[j][k])&0x1);
-				//write data word to LCD
+				// write data word to LCD
 				LCD_write(LCD_DATA,output);
 			}
 		}
@@ -198,76 +216,140 @@ void LCD_display_bitmap (struct LCD_bitmap *bitmap)
 	LCD_set_cursor(0,0);
 }
 
-static void LCD_instruction_set(enum LCD_INSTRUCTION_SET set)
+void LCD_display_bitmap (struct LCD_bitmap *bitmap)
 {
-	if (set != instruction_set)
-	{
-		instruction_set = set;
-		LCD_write(LCD_COMMAND,power_status|address_mode|instruction_set);
-	}
-	return;
+	int i,j;
+	LCD_set_cursor(0,0);
+	for (i=0; i<(LCD_HEIGHT_CHARS); i++)
+		for (j=0;j<(LCD_WIDTH);j++)
+			LCD_write(LCD_DATA,bitmap->pixel[i][j]);
+	LCD_set_cursor(0,0);
 }
 
-void LCD_set_cursor (int x, int y)
+void LCD_display_random(void)
+{
+	int i;
+	LCD_set_cursor(0,0);
+	for (i=0; i<(LCD_HEIGHT_CHARS*LCD_WIDTH);i++)
+	{
+		LCD_write(LCD_DATA,(unsigned char)(PERIPH_STCURRENT&0xFFL));
+	}
+	LCD_set_cursor(0,0);
+}
+
+void LCD_display_pixel(void)
+{
+	static unsigned int i=8*84*3+60;
+	int x,y,shift;
+	x=i%LCD_WIDTH;
+	y=i/LCD_WIDTH/8;
+	LCD_set_cursor(x,y);
+	shift = (i/LCD_WIDTH)%8;
+  LCD_write(LCD_DATA,(unsigned char)(WHITE));
+  LCD_write(LCD_DATA,(unsigned char)(BLACK<<shift));
+	if (++i >= LCD_HEIGHT*LCD_WIDTH-1)
+		i=0;	LCD_set_cursor(0,0);
+	LCD_display_string("###(");
+	LCD_display_char((unsigned char)((x/10)+0x30));
+	LCD_display_char((unsigned char)((x%10)+0x30));
+	LCD_display_char(',');
+	LCD_display_char((unsigned char)(y+0x30));	
+	LCD_display_char(':');
+	LCD_display_char((unsigned char)(shift+0x30));	
+	LCD_display_string(")###");
+}
+
+static void LCD_instruction_set(enum LCD_INSTRUCTION_SET instruction_set)
+{
+	LCD_write(LCD_COMMAND,LCD_COMMAND_FUNCTION_SET|power_status|address_mode|instruction_set);
+}
+
+void LCD_set_cursor (unsigned int x, unsigned int y)
 {
 	LCD_instruction_set(LCD_BASIC_INSTRUCTION_SET);
-	LCD_write(LCD_COMMAND,0x80|((unsigned char)(x&0x7F))); // set x address
-	LCD_write(LCD_COMMAND,0x40|((unsigned char)(y&0x7)));  // set y address
+	LCD_write(LCD_COMMAND,LCD_COMMAND_SET_X_ADDRESS|((unsigned char)(x&0x7F))); // set x address
+	LCD_write(LCD_COMMAND,LCD_COMMAND_SET_Y_ADDRESS|((unsigned char)(y&0x7)));  // set y address
 }
 
 void LCD_display_control (enum LCD_DISPLAY_CONTROL command)
 {
-	// set command bit
-	LCD_instruction_set(LCD_EXTENDED_INSTRUCTION_SET);
-	if (command == LCD_DISPLAY_BLANK)
-		LCD_write(LCD_COMMAND,0x08);
-	else if (command == LCD_DISPLAY_NORMAL_MODE)
-		LCD_write(LCD_COMMAND,0x0C);
-	else if (command == LCD_DISPLAY_ALL_ON)
-		LCD_write(LCD_COMMAND,0x09);
-	else if (command == LCD_DISPLAY_INVERSE_VIDEO)
-		LCD_write(LCD_COMMAND,0x0D);
+	enum display_control_bits {D=(1<<2),E=(1<<0)};
+	switch(command)
+	{
+		case LCD_DISPLAY_BLANK:
+			LCD_write(LCD_COMMAND,LCD_COMMAND_DISPLAY_CONTROL|0); break;
+		case LCD_DISPLAY_NORMAL_MODE:
+			LCD_write(LCD_COMMAND,LCD_COMMAND_DISPLAY_CONTROL|D); break;
+		case LCD_DISPLAY_ALL_ON:
+			LCD_write(LCD_COMMAND,LCD_COMMAND_DISPLAY_CONTROL|E); break;
+		case LCD_DISPLAY_INVERSE_VIDEO:
+			LCD_write(LCD_COMMAND,LCD_COMMAND_DISPLAY_CONTROL|D|E); break;
+	}
 	return;
+}
+
+void LCD_bias_control(unsigned long int n)
+{
+	LCD_instruction_set(LCD_EXTENDED_INSTRUCTION_SET);
+	LCD_write(LCD_COMMAND,LCD_COMMAND_BIAS_SYSTEM|(n&0x07));
+	LCD_instruction_set(LCD_BASIC_INSTRUCTION_SET);
+}
+
+void LCD_temp_control(unsigned long int n)
+{
+	LCD_instruction_set(LCD_EXTENDED_INSTRUCTION_SET);
+	LCD_write(LCD_COMMAND,LCD_COMMAND_TEMP_CONTROL|(n&0x03));
+	LCD_instruction_set(LCD_BASIC_INSTRUCTION_SET);
+}
+
+void LCD_contrast(unsigned long int n)
+{
+	LCD_instruction_set(LCD_EXTENDED_INSTRUCTION_SET);
+	LCD_write(LCD_COMMAND,LCD_COMMAND_SET_CONTRAST|(n&0x7F));
+	LCD_instruction_set(LCD_BASIC_INSTRUCTION_SET);
 }
 
 void LCD_init(void)
 {
 	// use port defined in header file for LCD control lines
-	unsigned long delay;
   SYSCTL_RCGCGPIO |= LCD_GPIO_CLOCK_ENABLE;        // 1) Enable Port clock
-  delay = SYSCTL_RCGCGPIO;                         // delay to allow clock to stabilize     
+  Delay1ms(1);                                     // delay to allow clock to stabilize     
   LCD_GPIO_AMSEL_R= 0x00;                          // 2) disable analog function
   LCD_GPIO_PCTL_R= 0x00000000;                     // 3) GPIO clear bit PCTL  
-  LCD_GPIO_DIR_R= ~0x00;                           // 4.1) define inputs
-  LCD_GPIO_DIR_R=(LCD_SCE|LCD_DC|LCD_LED|LCD_RST); // 4.2) define outputs  
+  LCD_GPIO_DIR_R &= ~0x00;                         // 4.1) define inputs
+  LCD_GPIO_DIR_R |= (LCD_DC|LCD_RST);              // 4.2) define outputs  
   LCD_GPIO_AFSEL_R= 0x00;                          // 5) no alternate function
   LCD_GPIO_PUR_R= LCD_RST;                         // 6) enable pullup resistor for LCD reset
-  LCD_GPIO_DEN_R=(LCD_SCE|LCD_DC|LCD_LED|LCD_RST); // 7) enable digital pins
+  LCD_GPIO_DEN_R=(LCD_DC|LCD_RST);                 // 7) enable digital pins
 
 	LCD_GPIO_DATA_R &= ~LCD_RST; // Pulse !RST to reset LCD
-	delay = LCD_GPIO_DATA_R;     // delay
+	Delay1ms(1);     // delay
 	LCD_GPIO_DATA_R |= LCD_RST;  //
 	
-	instruction_set = LCD_BASIC_INSTRUCTION_SET;
+	SSI_init(SSI0);    // Enable SSI0
+	LCD_SSI_CTL1_R &= ~(1L<<1);    // Disable SSI Synchronous Serial Port before ststus register changes
+	LCD_SSI_CTL0_R = (0x00000007|LCD_SSI_FRAME_FORMAT);   // 8-bit data
+	LCD_SSI_CTL1_R |= (1L<<1);     // Enable SSI Synchronous Serial Port
+	
 	address_mode = LCD_HORIZONTAL_ADDRESSING;
-	power_status = LCD_POWER_ON;
-	cd_state = LCD_COMMAND;
 	LCD_display_control(LCD_DISPLAY_NORMAL_MODE);
+	LCD_bias_control(3);
+	LCD_temp_control(0);
+	LCD_contrast(0x3d);
+	LCD_power_on();
 	LCD_clear_screen();
 }
 
 void LCD_power_on(void)
 {
-	LCD_instruction_set(LCD_BASIC_INSTRUCTION_SET);
 	power_status = LCD_POWER_ON;
-	LCD_write(LCD_COMMAND,power_status|address_mode|instruction_set);
+	LCD_write(LCD_COMMAND,LCD_COMMAND_FUNCTION_SET|power_status|address_mode);
 }
 
 void LCD_power_off(void)
 {
-	LCD_instruction_set(LCD_BASIC_INSTRUCTION_SET);
 	power_status = LCD_POWER_OFF;
-	LCD_write(LCD_COMMAND,power_status|address_mode|instruction_set);
+	LCD_write(LCD_COMMAND,LCD_COMMAND_FUNCTION_SET|power_status|address_mode);
 }
 
 void LCD_clear_screen(void)
@@ -275,7 +357,7 @@ void LCD_clear_screen(void)
 	int i;
 	LCD_set_cursor(0,0);
 	for (i=0; i<(LCD_HEIGHT*LCD_WIDTH/8); i++)
-		LCD_write(LCD_DATA,0x0);
+		LCD_write(LCD_DATA,WHITE);
 	LCD_set_cursor(0,0);
 }
 
@@ -292,6 +374,12 @@ void LCD_test_pattern(int pattern)
 		  break;
 		case 3:
 			LCD_display_bitmap(&test);
+		  break;
+		case 4:
+			LCD_display_random();
+		  break;
+		case 5:
+			LCD_display_pixel();
 		  break;
 		default:
 			LCD_display_string("Not implemented");

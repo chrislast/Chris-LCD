@@ -335,9 +335,9 @@ void LCD_init(void)
 	
 	address_mode = LCD_HORIZONTAL_ADDRESSING;
 	LCD_display_control(LCD_DISPLAY_NORMAL_MODE);
-	LCD_bias_control(3);
-	LCD_temp_control(0);
-	LCD_contrast(0x3d);
+	LCD_bias_control(LCD_BIAS_CONTROL);
+	LCD_temp_control(LCD_TEMP_CONTROL);
+	LCD_contrast(LCD_CONTRAST);
 	LCD_power_on();
 	LCD_clear_screen();
 }

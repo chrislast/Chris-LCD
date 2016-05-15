@@ -1,9 +1,6 @@
 #ifndef NOKIA5110_LCD_H
 #define NOKIA5110_LCD_H
 
-#include "GPIO.h"
-#include "SSI.h"
-
 // Red SparkFun Nokia 5110 (LCD-10168)
 // -----------------------------------
 // Signal        (Nokia 5110) LaunchPad pin
@@ -16,15 +13,6 @@
 // SSI0Clk       (SCLK, pin 7) connected to PA2
 // back light    (LED, pin 8) not connected, consists of 4 white LEDs which draw ~80mA total
 
-// Map LCD GPIO outputs to Port D
-#define LCD_GPIO_DATA_R  (GPIO_PORTA_DATA_R)
-#define LCD_GPIO_AMSEL_R (GPIO_PORTA_AMSEL_R)
-#define LCD_GPIO_PCTL_R  (GPIO_PORTA_PCTL_R)
-#define LCD_GPIO_DIR_R   (GPIO_PORTA_DIR_R)
-#define LCD_GPIO_AFSEL_R (GPIO_PORTA_AFSEL_R)
-#define LCD_GPIO_PUR_R   (GPIO_PORTA_PUR_R)    
-#define LCD_GPIO_DEN_R   (GPIO_PORTA_DEN_R)
-
 #define LCD_SCLK (1L<<2) // PA2 - SSI0Clk
 #define LCD_SCE  (1L<<3) // PA3 - SSI0Fss
 #define LCD_DN   (1L<<5) // PA5 - SSI0Tx
@@ -32,18 +20,9 @@
 #define LCD_RST  (1L<<7) // PA7 - RST
 #define LCD_LED  (0) // NOT CONNECTED
 
-// Use default SSI0 on PORT A [5:2]
-#define LCD_SSI_DATA_R (SSI0_DATA_R) // SSIDR p968
-#define LCD_SSI_STAT_R (SSI0_STAT_R) // SSISR p969
-#define LCD_SSI_CTL0_R (SSI0_CTL0_R) // SSICR0 p964
-#define LCD_SSI_CTL1_R (SSI0_CTL1_R) // SSICR1 p966
-
-#define LCD_SSI_FRAME_FORMAT (SSI_FRAME_FORMAT_FREESCALE_SPI)
-
-
-#define SYSCTL_RCGCGPIO_CLKD (1L<<3)
-#define SYSCTL_RCGCGPIO_CLKA (1L<<0)
-#define LCD_GPIO_CLOCK_ENABLE (SYSCTL_RCGCGPIO_CLKA)
+#define LCD_BIAS_CONTROL (3)
+#define LCD_TEMP_CONTROL (0)
+#define LCD_CONTRAST     (0x3d)
 
 enum LCD_DISPLAY_CONTROL
 {

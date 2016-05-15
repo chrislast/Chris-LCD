@@ -1,7 +1,7 @@
+#include "..\\tm4c123gh6pm.h"
 #include "Nokia5110_LCD.h"
-#include "GPIO.h"
-#include "sysctl.h"
-#include "SSI.h"
+
+void SSI_init(void);
 
 /* PCD8544-specific defines: */
 enum LCD_CD
@@ -157,21 +157,22 @@ static void LCD_write (enum LCD_CD cd, unsigned char byte)
 	if (cd == LCD_COMMAND)
 	{
 		// Wait until SSI is idle
-		while(LCD_SSI_STAT_R&SSI_SR_BUSY);
-	  LCD_GPIO_DATA_R &= ~LCD_DC;  // clear DC bit for command
+		while(SSI0_SR_R & SSI_SR_BSY);
+	  GPIO_PORTA_DATA_R &= ~LCD_DC;  // clear DC bit for command
 		
 		// write command byte to serial port
-		LCD_SSI_DATA_R = byte;
+		SSI0_DR_R = byte;
+		
     // Wait for command to complete
-		while(LCD_SSI_STAT_R&SSI_SR_BUSY);
-	  LCD_GPIO_DATA_R |= LCD_DC;  // Set DC bit for data
+		while(SSI0_SR_R & SSI_SR_BSY);
+	  GPIO_PORTA_DATA_R |= LCD_DC;  // Set DC bit for data
 	}
 	else
 	{
 		// Wait until Tx FIFO is not full
-		while (!(LCD_SSI_STAT_R&SSI_SR_TX_FIFO_NOT_FULL));
+		while (!(SSI0_SR_R & SSI_SR_TNF));
 		// write data byte to serial port
-		LCD_SSI_DATA_R = byte;
+		SSI0_DR_R = byte;
 	}
 }
 
@@ -232,7 +233,7 @@ void LCD_display_random(void)
 	LCD_set_cursor(0,0);
 	for (i=0; i<(LCD_HEIGHT_CHARS*LCD_WIDTH);i++)
 	{
-		LCD_write(LCD_DATA,(unsigned char)(PERIPH_STCURRENT&0xFFL));
+		LCD_write(LCD_DATA,(unsigned char)(NVIC_ST_CURRENT_R&0xFFL));
 	}
 	LCD_set_cursor(0,0);
 }
@@ -311,25 +312,26 @@ void LCD_contrast(unsigned long int n)
 
 void LCD_init(void)
 {
+	volatile unsigned long temp;
 	// use port defined in header file for LCD control lines
-  SYSCTL_RCGCGPIO |= LCD_GPIO_CLOCK_ENABLE;        // 1) Enable Port clock
-  Delay1ms(1);                                     // delay to allow clock to stabilize     
-  LCD_GPIO_AMSEL_R= 0x00;                          // 2) disable analog function
-  LCD_GPIO_PCTL_R= 0x00000000;                     // 3) GPIO clear bit PCTL  
-  LCD_GPIO_DIR_R &= ~0x00;                         // 4.1) define inputs
-  LCD_GPIO_DIR_R |= (LCD_DC|LCD_RST);              // 4.2) define outputs  
-  LCD_GPIO_AFSEL_R= 0x00;                          // 5) no alternate function
-  LCD_GPIO_PUR_R= LCD_RST;                         // 6) enable pullup resistor for LCD reset
-  LCD_GPIO_DEN_R=(LCD_DC|LCD_RST);                 // 7) enable digital pins
+  SYSCTL_RCGCGPIO_R |= SYSCTL_RCGCGPIO_R0;           // 1) Enable Port A clock
+  temp = SYSCTL_RCGCGPIO_R;                          // delay to allow clock to stabilize     
+  GPIO_PORTA_AMSEL_R= 0x00;                          // 2) disable analog function
+  GPIO_PORTA_PCTL_R= 0x00000000;                     // 3) GPIO clear bit PCTL  
+  GPIO_PORTA_DIR_R &= ~0x00;                         // 4.1) define inputs
+  GPIO_PORTA_DIR_R |= (LCD_DC|LCD_RST);              // 4.2) define outputs  
+  GPIO_PORTA_AFSEL_R= 0x00;                          // 5) no alternate function
+  GPIO_PORTA_PUR_R= LCD_RST;                         // 6) enable pullup resistor for LCD reset
+  GPIO_PORTA_DEN_R=(LCD_DC|LCD_RST);                 // 7) enable digital pins
 
-	LCD_GPIO_DATA_R &= ~LCD_RST; // Pulse !RST to reset LCD
-	Delay1ms(1);     // delay
-	LCD_GPIO_DATA_R |= LCD_RST;  //
+	GPIO_PORTA_DATA_R &= ~LCD_RST; // Pulse !RST to reset LCD
+	temp = GPIO_PORTA_DATA_R;      // delay
+	GPIO_PORTA_DATA_R |= LCD_RST;  //
 	
-	SSI_init(SSI0);    // Enable SSI0
-	LCD_SSI_CTL1_R &= ~(1L<<1);    // Disable SSI Synchronous Serial Port before ststus register changes
-	LCD_SSI_CTL0_R = (0x00000007|LCD_SSI_FRAME_FORMAT);   // 8-bit data
-	LCD_SSI_CTL1_R |= (1L<<1);     // Enable SSI Synchronous Serial Port
+	SSI_init();    // Enable SSI0
+	SSI0_CR1_R &= ~(SSI_CR1_SSE);    // Disable SSI Synchronous Serial Port
+	SSI0_CR0_R = (SSI_CR0_DSS_8|SSI_CR0_FRF_MOTO);   // 8-bit data, Freescale SPI Frame Format
+	SSI0_CR1_R |= (SSI_CR1_SSE);     // Enable SSI Synchronous Serial Port
 	
 	address_mode = LCD_HORIZONTAL_ADDRESSING;
 	LCD_display_control(LCD_DISPLAY_NORMAL_MODE);
@@ -384,4 +386,23 @@ void LCD_test_pattern(int pattern)
 		default:
 			LCD_display_string("Not implemented");
 	}
+}
+
+void SSI_init(void)
+{
+		volatile unsigned long temp;
+		// 1. Enable the SSI module using the RCGCSSI register (see page 345).
+		SYSCTL_RCGCSSI_R |= SYSCTL_RCGCSSI_R0;      // Enable SSI0
+		temp = SYSCTL_RCGCSSI_R;
+    // 2. Enable the clock to the appropriate GPIO module via the RCGCGPIO register (see page 339).
+		SYSCTL_RCGCGPIO_R |= SYSCTL_RCGCGPIO_R0;     // Enable GPIO PORT A
+		temp = SYSCTL_RCGCGPIO_R;
+		// 3. Set the GPIO AFSEL bits for the appropriate pins (see page 669).
+		GPIO_PORTA_AFSEL_R |= 0x2C; // Enable SSI0 pins
+		// 4. Configure the PMCn fields in the GPIOPCTL register to assign the SSI signals to the appropriate pins
+		GPIO_PORTA_PCTL_R &= 0xFF0F0000;
+		GPIO_PORTA_PCTL_R |= 0x00202211; // Enable SSI0 and UART0
+		// 5. Program the GPIODEN register to enable the pin's digital function
+		GPIO_PORTA_DEN_R |= 0x2F;
+		SSI0_CPSR_R = 0x18; // clock prescale copied from edX
 }

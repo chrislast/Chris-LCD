@@ -3,6 +3,7 @@
 // 1. Pre-processor Directives Section
 #include "..\\tm4c123gh6pm.h"
 #include "Nokia5110_LCD.h"
+#include "crystalfontz128x128.h"
 
 // Constant declarations to access port registers using 
 // symbolic names instead of addresses
@@ -17,6 +18,7 @@ void Delay1ms(unsigned long msec);
 // 3. Subroutines Section
 int main(void)
 {
+	/*
 	init();
 	LCD_init();        // Initialise the LCD
   while(1)
@@ -28,7 +30,9 @@ int main(void)
 			LCD_test_pattern(i);
 			Delay1ms(100);
 		}
-  }
+  } */
+	setup();
+	loop();
 }
 
 #define SYSTICK_RELOAD_VALUE (0x01FE)

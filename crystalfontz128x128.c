@@ -46,6 +46,7 @@
 
 #include <stdint.h>
 #include "..\\tm4c123gh6pm.h"
+#include "crystalfontz128x128.h"
 
 //============================================================================
 //
@@ -68,7 +69,7 @@
 //   #14   |  PB6 | not used (would be MISO)
 //   #7    |  PB4 | LCD_SCK (hardware SPI)
 
-#define HARDWARE_SPI (0)
+#define HARDWARE_SPI (1)
 
 #define BIT(X)    (1L<<(X))
 
@@ -122,6 +123,15 @@ void SPI_Bit_Bang_Transfer(uint8_t data)
     CLR_SCK;
     }
   }
+//============================================================================
+void static SPI_transfer(uint8_t command){
+
+                                        // wait until SSI0 not busy/transmit FIFO empty
+    while((SSI2_SR_R&SSI_SR_BSY)==SSI_SR_BSY){};
+    SSI2_DR_R = command;                // command out
+                                        // wait until SSI0 not busy/transmit FIFO empty
+    while((SSI2_SR_R&SSI_SR_BSY)==SSI_SR_BSY){};
+}
 //============================================================================
 void SPI_sendCommand(uint8_t command)
   {
@@ -574,6 +584,20 @@ void LCD_Circle(uint8_t x0, uint8_t y0, uint8_t radius, uint8_t R, uint8_t G, ui
     }
   }
 //============================================================================
+void SPI_begin(void)
+{
+	volatile unsigned long temp;
+	// Enable the SSI module using the RCGCSSI register (see page 345).
+	SYSCTL_RCGCSSI_R |= SYSCTL_RCGCSSI_R2;      // Enable SSI2
+	temp = SYSCTL_RCGCSSI_R;
+
+	SSI2_CPSR_R = 0x18; // clock prescale copied from edX
+	
+	SSI2_CR1_R &= ~(SSI_CR1_SSE);    // Disable SSI Synchronous Serial Port
+	SSI2_CR0_R = (SSI_CR0_DSS_8|SSI_CR0_FRF_MOTO);   // 8-bit data, Freescale SPI Frame Format
+	SSI2_CR1_R |= (SSI_CR1_SSE);     // Enable SSI Synchronous Serial Port
+}
+
 void setup()
 {
 // LCD SPI & control lines
@@ -637,7 +661,7 @@ void setup()
   // initialize SPI. By default the clock is 4MHz. The chip is good to 10 MHz
   SPI_begin();
   //Bump the clock to 8MHz. Appears to be the maximum.
-  SPI_beginTransaction(SPISettings(8000000, MSBFIRST, SPI_MODE0));
+  // SPI_beginTransaction(SPISettings(8000000, MSBFIRST, SPI_MODE0));
 #endif
   }
 //============================================================================

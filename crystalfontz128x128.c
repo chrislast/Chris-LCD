@@ -101,6 +101,17 @@ void delay(unsigned long msec)
 				for (j=6000; j>0; j--);
 }
 
+#if (HARDWARE_SPI)
+//============================================================================
+void static SPI_transfer(uint8_t command){
+
+                                        // wait until SSI0 not busy/transmit FIFO empty
+    while((SSI2_SR_R&SSI_SR_BSY)==SSI_SR_BSY){};
+    SSI2_DR_R = command;                // command out
+                                        // wait until SSI0 not busy/transmit FIFO empty
+    while((SSI2_SR_R&SSI_SR_BSY)==SSI_SR_BSY){};
+}
+#else
 //============================================================================
 void SPI_Bit_Bang_Transfer(uint8_t data)
   {
@@ -123,15 +134,7 @@ void SPI_Bit_Bang_Transfer(uint8_t data)
     CLR_SCK;
     }
   }
-//============================================================================
-void static SPI_transfer(uint8_t command){
-
-                                        // wait until SSI0 not busy/transmit FIFO empty
-    while((SSI2_SR_R&SSI_SR_BSY)==SSI_SR_BSY){};
-    SSI2_DR_R = command;                // command out
-                                        // wait until SSI0 not busy/transmit FIFO empty
-    while((SSI2_SR_R&SSI_SR_BSY)==SSI_SR_BSY){};
-}
+#endif
 //============================================================================
 void SPI_sendCommand(uint8_t command)
   {
@@ -167,26 +170,79 @@ void SPI_sendData(uint8_t data)
 //----------------------------------------------------------------------------
 // Defines for the ST7735 registers.
 // ref: https://www.crystalfontz.com/products/document/3277/ST7735_V2.1_20100505.pdf
-#define ST7735_SLPOUT   (0x11)
-#define ST7735_DISPON   (0x29)
-#define ST7735_CASET    (0x2A)
-#define ST7735_RASET    (0x2B)
-#define ST7735_RAMWR    (0x2C)
-#define ST7735_RAMRD    (0x2E)
-#define ST7735_MADCTL   (0x36)
-#define ST7735_COLMOD   (0x3A)
-#define ST7735_FRMCTR1  (0xB1)
-#define ST7735_FRMCTR2  (0xB2)
-#define ST7735_FRMCTR3  (0xB3)
-#define ST7735_INVCTR   (0xB4)
-#define ST7735_PWCTR1   (0xC0)
-#define ST7735_PWCTR2   (0xC1)
-#define ST7735_PWCTR3   (0xC2)
-#define ST7735_PWCTR4   (0xC3)
-#define ST7735_PWCTR5   (0xC4)
-#define ST7735_VMCTR1   (0xC5)
-#define ST7735_GAMCTRP1 (0xE0)
-#define ST7735_GAMCTRN1 (0xE1)
+
+/************* SYSTEM FUNCTION COMMANDS ************************
+#define ST7735_NOP      (0x00) // No Operation
+#define ST7735_SWRESET  (0x01) // software Reset
+#define ST7735_RDDID    (0x04) // Read Display ID
+#define ST7735_RDDST    (0x09) // Read Display Status
+#define ST7735_RDDPM    (0x0A) // Read Display Power Mode
+#define ST7735_RDDMADCTL (0x0B) // Read Display MADCTL
+#define ST7735_RDDCOLMOD (0x0C) // Read Display Pixel Format
+#define ST7735_RDDIM    (0x0D) // Read Display Image Mode
+#define ST7735_RDDSM    (0x0E) // Read Display Signal Mode
+#define ST7735_RDDSR    (0x0F) // Read Display Self-Diagnostic Result
+#define ST7735_SLPIN    (0x10) // Sleep In & Booster Off
+*/
+#define ST7735_SLPOUT   (0x11) // Sleep Out & Booster On
+/*
+#define ST7735_PTLON    (0x12) // Partial Mode On
+#define ST7735_NORON    (0x13) // Partial Mode Off (Normal)
+#define ST7735_INVOFF   (0x20) // Diplay Inversion Off (Normal)
+#define ST7735_INVON    (0x21) // Display Inversion On
+#define ST7735_GAMSET   (0x26) // Gamma Curve Select
+#define ST7735_DISPOFF  (0x28) // Display Off
+*/
+#define ST7735_DISPON   (0x29) // Display On
+#define ST7735_CASET    (0x2A) // Column Address Set
+#define ST7735_RASET    (0x2B) // Row Address Set
+#define ST7735_RAMWR    (0x2C) // Memory Write
+/*
+define ST7735_RGBSET   (0x2D) // LUT for 4k,65k,262k colour display
+*/
+#define ST7735_RAMRD    (0x2E) // Memory Read
+/*
+#define ST7735_PTLAR    (0x30) // Partial Start/End Address
+#define ST7735_SCRLAR   (0x33) // Scroll Area Set
+#define ST7735_TEOFF    (0x34) // Tearing Effect Line Off
+#define ST7735_TEON     (0x35) // Tearing Effect Mode Set & On
+*/
+#define ST7735_MADCTL   (0x36) // Memory Data Acess Control
+/*
+#define ST7735_VSCSAD   (0x37) // Scroll Start Address of RAM
+#define ST7735_IDMOFF   (0x38) // Idle Mode Off
+#define ST7735_IDMON    (0x39) // Idle Mode On
+
+*/
+#define ST7735_COLMOD   (0x3A) // Interface Pixel Format
+/*
+#define ST7735_RDID1    (0xDA) // Read ID1
+#define ST7735_RDID2    (0xDB) // Read ID2
+#define ST7735_RDID3    (0xDC) // Read ID3
+*/
+
+/*********** PANEL FUNCTION COMMANDS *****************/
+#define ST7735_FRMCTR1  (0xB1) // In Normal Mode (Full Colours)
+#define ST7735_FRMCTR2  (0xB2) // In Idle Mode (8 colours)
+#define ST7735_FRMCTR3  (0xB3) // In Partial Mode + Full Colous
+#define ST7735_INVCTR   (0xB4) // Display Inversion Control
+#define ST7735_PWCTR1   (0xC0) // Power Control Setting
+#define ST7735_PWCTR2   (0xC1) // Power Control Setting
+#define ST7735_PWCTR3   (0xC2) // Power Control Setting in Normal Mode
+#define ST7735_PWCTR4   (0xC3) // Power Control Setting in Idle Mode
+#define ST7735_PWCTR5   (0xC4) // Power Control Setting in Partial Mode
+#define ST7735_VMCTR1   (0xC5) // VCOM Control 1
+/*
+#define ST7735_VMOFCTR  (0xC7) // Set VCOM Offset Control
+#define ST7735_WRID2    (0xD1) // Set LCM Version Code
+#define ST7735_WRID3    (0xD2) // Customer Project Code
+#define ST7735_NVCTR1   (0xD9) // NVM Control Status
+#define ST7735_NVCTR1   (0xDE) // NVM Read Command
+#define ST7735_NVCTR1   (0xDF) // NVM Write Command
+*/
+#define ST7735_GAMCTRP1 (0xE0) // Gamma Adjust +ve Polarity
+#define ST7735_GAMCTRN1 (0xE1) // Gamma Adjust -ve Polarity
+
 //----------------------------------------------------------------------------
 void Initialize_LCD(void)
   {
@@ -539,13 +595,43 @@ void Fill_LCD(uint8_t R, uint8_t G, uint8_t B)
   }
 //============================================================================
 void Put_Pixel(uint8_t x, uint8_t y, uint8_t R, uint8_t G, uint8_t B)
-  {
+{
   Set_LCD_for_write_at_X_Y(x, y);
   //Write the single pixel's worth of data
   SPI_sendData(B); //Blue
   SPI_sendData(G); //Green
   SPI_sendData(R); //Red
-  }
+}
+
+//============================================================================
+void LCD_Line(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t R, uint8_t G, uint8_t B)
+{
+	int16_t i;
+	int16_t step;
+	int16_t x=x0,xx=x1,y=y0,yy=y1;
+	int16_t slope;
+
+	if ((x-xx)*(xx-x)<=(yy-y)*(y-yy))
+	{
+		step = (x>xx) ? -1 : 1;
+		slope = (y-yy==0) ? 0 : ((y-yy)<<6)/(x-xx);
+		for ( i=x ; i!=xx; i+=step )
+		{
+			Put_Pixel(i, (((i-x)*slope+0x20)>>6)+y, R, G, B);
+			delay(1);
+		}
+	}
+	else
+	{
+		step = (y>yy) ? -1 : 1;
+		slope = (x-xx==0) ? 0 : ((x-xx)<<6)/(y-yy);
+		for ( i=y ; i!=yy; i+=step )
+		{
+			Put_Pixel((((i-y)*slope+0x20)>>6)+x, i, R, G, B);
+			delay(1);
+		}
+	}
+}
 //============================================================================
 // From: http://en.wikipedia.org/wiki/Midpoint_circle_algorithm
 void LCD_Circle(uint8_t x0, uint8_t y0, uint8_t radius, uint8_t R, uint8_t G, uint8_t B)
@@ -591,11 +677,25 @@ void SPI_begin(void)
 	SYSCTL_RCGCSSI_R |= SYSCTL_RCGCSSI_R2;      // Enable SSI2
 	temp = SYSCTL_RCGCSSI_R;
 
-	SSI2_CPSR_R = 0x18; // clock prescale copied from edX
-	
-	SSI2_CR1_R &= ~(SSI_CR1_SSE);    // Disable SSI Synchronous Serial Port
-	SSI2_CR0_R = (SSI_CR0_DSS_8|SSI_CR0_FRF_MOTO);   // 8-bit data, Freescale SPI Frame Format
-	SSI2_CR1_R |= (SSI_CR1_SSE);     // Enable SSI Synchronous Serial Port
+/********************************************************************************/
+  SSI2_CR1_R &= ~SSI_CR1_SSE;           // disable SSI
+  SSI2_CR1_R &= ~SSI_CR1_MS;            // master mode
+                                        // configure for system clock/PLL baud clock source
+  SSI2_CC_R = (SSI2_CC_R&~SSI_CC_CS_M)+SSI_CC_CS_SYSPLL;
+//                                        // clock divider for 3.125 MHz SSIClk (50 MHz PIOSC/16)
+//  SSI2_CPSR_R = (SSI0_CPSR_R&~SSI_CPSR_CPSDVSR_M)+16;
+                                        // clock divider for 8 MHz SSIClk (80 MHz PLL/24)
+                                        // SysClk/(CPSDVSR*(1+SCR))
+                                        // 80/(10*(1+0)) = 8 MHz (slower than 4 MHz)
+  SSI2_CPSR_R = (SSI2_CPSR_R&~SSI_CPSR_CPSDVSR_M)+10; // must be even number
+  SSI2_CR0_R &= ~(SSI_CR0_SCR_M |       // SCR = 0 (8 Mbps data rate)
+                  SSI_CR0_SPH |         // SPH = 0
+                  SSI_CR0_SPO);         // SPO = 0
+                                        // FRF = Freescale format
+  SSI2_CR0_R = (SSI2_CR0_R&~SSI_CR0_FRF_M)+SSI_CR0_FRF_MOTO;
+                                        // DSS = 8-bit data
+  SSI2_CR0_R = (SSI2_CR0_R&~SSI_CR0_DSS_M)+SSI_CR0_DSS_8;
+  SSI2_CR1_R |= SSI_CR1_SSE;            // enable SSI
 }
 
 void setup()
@@ -682,7 +782,7 @@ void loop()
   Initialize_LCD();
 
   //Fill display with a given RGB value
-  Fill_LCD(0x00,0x00,0xFF);
+  Fill_LCD(0x00,0x00,0xFC);
 
   //Draw a cyan circle
   LCD_Circle(64, 64, 63,0x00,0xFF,0xFF);

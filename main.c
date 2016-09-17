@@ -4,6 +4,7 @@
 #define LCD CF128X128
 
 #include <stdlib.h>
+#include "TM4C123.h"
 
 // 1. Pre-processor Directives Section
 #include "..\\tm4c123gh6pm.h"
@@ -46,6 +47,9 @@ int main(void)
 	Fill_LCD(0x80,0x80,0x80);
 	while (1)
 	{
+		static char buffer[128][128];
+		char *b;
+		int i;
 		/*
 		LCD_Line(  0,  0, 60, 60,0xff,   0,   0);
 		LCD_Line(  0, 60, 30, 60,0xff,0xff,   0);
@@ -55,32 +59,26 @@ int main(void)
 		LCD_Line(127, 67, 97, 68,0xff,0   ,0xff);
 		LCD_Line(127,  0, 67, 60,0xff,0xff,0xff);
 		LCD_Line( 67,  0, 67, 30,0x00,0x00,0x00);
-		*/
 		LCD_Line( rand()&0x7f,rand()&0x7f,rand()&0x7f,rand()&0x7f,
-							rand()&0xff,rand()&0xff,rand()&0xff);
+							rand()&0xff,rand()&0xff,rand()&0xff);*/
+		//loop();
+		b=&buffer[0][0];
+		for (i=0; i < 128*128; i++)
+			*b++ = (char)(rand()&0xfc);
+
+    Fill_LCD_image(&buffer[0][0]);
+		//Delay1ms(1000);
 	}
-	loop();
 #endif
 }
 
 #define SYSTICK_RELOAD_VALUE (0x01FE)
+
 void init(void)
 {
-	/* // Leave 16MHz clock at 16 MHz not 80MHz
-	SYSCTL_RCC2 |= 0x80000000; // RCC2 overrides RCC
-	SYSCTL_RCC2 |= 0x00000800; // system clock is derived from OSC using divisor SYSDIV2
-	SYSCTL_RCC = 0x00000540;
-	SYSCTL_RCC2 |= 0x41000000; // Divide PLL using 400 MHz
-	SYSCTL_RCC2 &= ~0x00000800; // Use Main oscillator */
-  
+	init_80MHz();
+	init_systick(SYSTICK_RELOAD_VALUE);
 	
-	/* Setup SysTick clock */
-	// Set RELOAD value
-	NVIC_ST_RELOAD_R = SYSTICK_RELOAD_VALUE;
-	// Zero CURRENT value
-  NVIC_ST_CURRENT_R=0;
-	// Stop counter
-	NVIC_ST_CTRL_R = NVIC_ST_CTRL_CLK_SRC | NVIC_ST_CTRL_ENABLE;
 }
 
 // Subroutine to delay in units of milliseconds

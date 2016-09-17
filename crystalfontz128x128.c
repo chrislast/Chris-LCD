@@ -203,10 +203,10 @@ define ST7735_RGBSET   (0x2D) // LUT for 4k,65k,262k colour display
 #define ST7735_RAMRD    (0x2E) // Memory Read
 /*
 #define ST7735_PTLAR    (0x30) // Partial Start/End Address
-#define ST7735_SCRLAR   (0x33) // Scroll Area Set
+#define ST7735_SCRLAR   (0x33) // Scroll Area Set*/
 #define ST7735_TEOFF    (0x34) // Tearing Effect Line Off
 #define ST7735_TEON     (0x35) // Tearing Effect Mode Set & On
-*/
+/**/
 #define ST7735_MADCTL   (0x36) // Memory Data Acess Control
 /*
 #define ST7735_VSCSAD   (0x37) // Scroll Start Address of RAM
@@ -264,9 +264,12 @@ void Initialize_LCD(void)
   // * 1 < FPA(front porch) + BPA(back porch) ; Back porch ?0
   //Note: fosc = 333kHz
   SPI_sendCommand(ST7735_FRMCTR1);//In normal mode(Full colors)
-  SPI_sendData(0x02);//RTNB: set 1-line period
-  SPI_sendData(0x35);//FPB:  front porch
-  SPI_sendData(0x36);//BPB:  back porch
+  SPI_sendData(0x01);//RTNB: set 1-line period
+  SPI_sendData(0x2c);//FPB:  front porch
+  SPI_sendData(0x2d);//BPB:  back porch
+  //SPI_sendData(0x02);//RTNB: set 1-line period
+  //SPI_sendData(0x35);//FPB:  front porch
+  //SPI_sendData(0x36);//BPB:  back porch
 
   //FRMCTR2 (B2h): Frame Rate Control (In Idle mode/ 8-colors)
   //Set the frame frequency of the Idle mode.
@@ -274,9 +277,12 @@ void Initialize_LCD(void)
   // * 1 < FPB(front porch) + BPB(back porch) ; Back porch ?0
   //Note: fosc = 333kHz
   SPI_sendCommand(ST7735_FRMCTR2);//In Idle mode (8-colors)
-  SPI_sendData(0x02);//RTNB: set 1-line period
+  SPI_sendData(0x01);//RTNB: set 1-line period
+  SPI_sendData(0x2c);//FPB:  front porch
+  SPI_sendData(0x2d);//BPB:  back porch
+/*  SPI_sendData(0x02);//RTNB: set 1-line period
   SPI_sendData(0x35);//FPB:  front porch
-  SPI_sendData(0x36);//BPB:  back porch
+  SPI_sendData(0x36);//BPB:  back porch */
 
   //FRMCTR3 (B3h): Frame Rate Control (In Partial mode/ full colors)
   //Set the frame frequency of the Partial mode/ full colors.
@@ -286,12 +292,18 @@ void Initialize_LCD(void)
   // * 1 < FPC(front porch) + BPC(back porch) ; Back porch ?0
   //Note: fosc = 333kHz
   SPI_sendCommand(ST7735_FRMCTR3);//In partial mode + Full colors
-  SPI_sendData(0x02);//RTNC: set 1-line period
+  SPI_sendData(0x01);//RTNB: set 1-line period
+  SPI_sendData(0x2c);//FPB:  front porch
+  SPI_sendData(0x2d);//BPB:  back porch
+  SPI_sendData(0x01);//RTNB: set 1-line period
+  SPI_sendData(0x2c);//FPB:  front porch
+  SPI_sendData(0x2d);//BPB:  back porch
+/*  SPI_sendData(0x02);//RTNC: set 1-line period
   SPI_sendData(0x35);//FPC:  front porch
   SPI_sendData(0x36);//BPC:  back porch
   SPI_sendData(0x02);//RTND: set 1-line period
   SPI_sendData(0x35);//FPD:  front porch
-  SPI_sendData(0x36);//BPD:  back porch
+  SPI_sendData(0x36);//BPD:  back porch */
 
   //INVCTR (B4h): Display Inversion Control
   SPI_sendCommand(ST7735_INVCTR);
@@ -604,6 +616,43 @@ void Put_Pixel(uint8_t x, uint8_t y, uint8_t R, uint8_t G, uint8_t B)
 }
 
 //============================================================================
+void Fill_LCD_image(char* buffer)
+{
+	int i;
+	SPI_sendCommand(ST7735_COLMOD);
+  SPI_sendData(0x03);// Use 0x03 => 12-bit/pixel
+                     // IFPF[2:0] MCU Interface Color Format
+                     // IFPF[2:0] | Format
+                     //      011b | 12-bit/pixel RRRRGGGG BBBBRRRR GGGGBBBB
+
+	//SPI_sendCommand(ST7735_TEON);
+	//SPI_sendData(0x01); // affects H and V sync
+  Set_LCD_for_write_at_X_Y(0, 0);
+
+  // Select the LCD's data register
+  SET_RS;
+  // Select the LCD controller
+  CLR_CS;
+	for (i=0; i < 128*128/2; i++)
+	{
+		// avoid all function calls for 29ms? refresh
+		while((SSI2_SR_R&SSI_SR_BSY)==SSI_SR_BSY){};
+    SSI2_DR_R = ( (buffer[0]&0xc0)    |((buffer[0]&0x30)>>2));  // Red1/Green1 
+		while((SSI2_SR_R&SSI_SR_BSY)==SSI_SR_BSY){};
+    SSI2_DR_R = (((buffer[0]&0x0c)<<4)|((buffer[1]&0xc0)>>4));  // Blue1/Red2
+		while((SSI2_SR_R&SSI_SR_BSY)==SSI_SR_BSY){};
+    SSI2_DR_R = (((buffer[1]&0x30)<<2)|((buffer[1]&0x0c)));     // Green2/Blue2
+		buffer+=2;
+	}
+	while((SSI2_SR_R&SSI_SR_BSY)==SSI_SR_BSY){};
+  // De-Select the LCD controller
+  CLR_CS;
+  SPI_sendCommand(ST7735_COLMOD);
+  SPI_sendData(0x06);// Default: 0x06 => 18-bit/pixel
+	//SPI_sendCommand(ST7735_TEOFF);
+}
+
+//============================================================================
 void LCD_Line(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t R, uint8_t G, uint8_t B)
 {
 	int16_t i;
@@ -618,7 +667,6 @@ void LCD_Line(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t R, uint8_t
 		for ( i=x ; i!=xx; i+=step )
 		{
 			Put_Pixel(i, (((i-x)*slope+0x20)>>6)+y, R, G, B);
-			delay(1);
 		}
 	}
 	else
@@ -628,7 +676,6 @@ void LCD_Line(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t R, uint8_t
 		for ( i=y ; i!=yy; i+=step )
 		{
 			Put_Pixel((((i-y)*slope+0x20)>>6)+x, i, R, G, B);
-			delay(1);
 		}
 	}
 }
@@ -683,7 +730,7 @@ void SPI_begin(void)
                                         // configure for system clock/PLL baud clock source
   SSI2_CC_R = (SSI2_CC_R&~SSI_CC_CS_M)+SSI_CC_CS_SYSPLL;
 //                                        // clock divider for 3.125 MHz SSIClk (50 MHz PIOSC/16)
-//  SSI2_CPSR_R = (SSI0_CPSR_R&~SSI_CPSR_CPSDVSR_M)+16;
+//  SSI2_CPSR_R = (SSI2_CPSR_R&~SSI_CPSR_CPSDVSR_M)+16;
                                         // clock divider for 8 MHz SSIClk (80 MHz PLL/24)
                                         // SysClk/(CPSDVSR*(1+SCR))
                                         // 80/(10*(1+0)) = 8 MHz (slower than 4 MHz)
